@@ -1,1 +1,9 @@
 main
+
+# Direnv
+.direnv/
+.env
+.envrc.local
+
+# Flake
+result

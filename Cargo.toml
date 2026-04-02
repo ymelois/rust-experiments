@@ -1,0 +1,20 @@
+[package]
+name = "main"
+edition = "2024"
+publish = false
+
+[dependencies]
+
+[[bin]]
+name = "main"
+path = "main.rs"
+test = false
+bench = false
+
+[profile.release]
+opt-level = 3
+debug = "none"
+strip = "symbols"
+lto = "fat"
+panic = "abort"
+codegen-units = 1

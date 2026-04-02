@@ -1,7 +1,8 @@
 #![no_std]
 
-pub const SYS_WRITE: i64 = 1;
-pub const SYS_EXIT: i64 = 60;
+const SYS_WRITE: i64 = 1;
+const SYS_NANOSLEEP: i64 = 35;
+const SYS_EXIT: i64 = 60;
 
 pub const EINTR: Error = Error(4);
 
@@ -30,6 +31,33 @@ pub fn write(
         Err(Error(-ret as usize))
     } else {
         Ok(ret as usize)
+    }
+}
+
+pub struct Timespec {
+    pub tv_sec: u64,
+    pub tv_nsec: u64,
+}
+
+pub fn nanosleep(duration: Timespec) -> Result<(), Error> {
+    // TODO: handle duration remainder
+    let ret: isize;
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") SYS_NANOSLEEP,
+            in("rdi") (&raw const duration) as u64,
+            in("rsi") 0,
+            out("rcx") _,
+            out("r11") _,
+            lateout("rax") ret,
+            options(nostack),
+        );
+    };
+    if ret < 0 {
+        Err(Error(-ret as usize))
+    } else {
+        Ok(())
     }
 }
 

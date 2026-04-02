@@ -1,6 +1,9 @@
 #![no_std]
 #![no_main]
 
+#[cfg(not(all(target_arch = "x86_64", any(target_os = "linux", target_os = "none"))))]
+compile_error!("This program uses Linux kernel syscalls.");
+
 const STDOUT: i64 = 1;
 
 type Result<T, E = ()> = core::result::Result<T, E>;

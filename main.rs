@@ -1,66 +1,42 @@
 #![no_std]
 #![no_main]
 
-const SYS_WRITE: i64 = 1;
-const SYS_EXIT: i64 = 60;
-
 const STDOUT: i64 = 1;
 
-struct SyscallError(usize);
-
-fn write(
-    fd: i64,
-    buf: &[u8],
-) -> Result<usize, SyscallError> {
-    let ret: isize;
-    unsafe {
-        core::arch::asm!(
-            "syscall",
-            in("rax") SYS_WRITE,
-            in("rdi") fd,
-            in("rsi") buf.as_ptr() as u64,
-            in("rdx") buf.len() as u64,
-            out("rcx") _,
-            out("r11") _,
-            lateout("rax") ret,
-            options(nostack),
-        );
-    };
-    if ret < 0 {
-        Err(SyscallError(-ret as usize))
-    } else {
-        Ok(ret as usize)
-    }
-}
+type Result<T, E = ()> = core::result::Result<T, E>;
 
 fn write_all(
     fd: i64,
     mut buf: &[u8],
-) -> Result<(), SyscallError> {
+) -> Result<()> {
     while !buf.is_empty() {
-        match write(fd, buf) {
-            Ok(0) => todo!("handle error"),
+        match syscall::write(fd, buf) {
+            Ok(0) => return Err(()),
             Ok(n) => buf = &buf[n..],
-            Err(e) => return Err(e),
+            Err(e) if e == syscall::EINTR => {}
+            Err(_) => return Err(()),
         }
     }
     Ok(())
 }
 
-fn print(buf: &[u8]) -> Result<(), SyscallError> {
+fn print(buf: &[u8]) -> Result<()> {
     write_all(STDOUT, buf)?;
     Ok(())
 }
 
-fn exit(code: u64) -> ! {
-    unsafe {
-        core::arch::asm!(
-            "syscall",
-            in("rax") SYS_EXIT,
-            in("rdi") code,
-            options(noreturn),
-        )
+fn main(args: &[*const u8]) -> Result<()> {
+    for arg in args {
+        let arg = unsafe {
+            let ptr = *arg;
+            let len = strlen(ptr);
+            core::slice::from_raw_parts(ptr, len)
+        };
+        print(arg)?;
+        print(b"\n")?;
     }
+
+    Ok(())
 }
 
 #[unsafe(no_mangle)]
@@ -74,22 +50,17 @@ extern "C" fn strlen(ptr: *const u8) -> usize {
     }
 }
 
-#[unsafe(no_mangle)]
-extern "C" fn main(
+#[unsafe(export_name = "main")]
+extern "C" fn _main(
     argc: usize,
     argv: *const *const u8,
 ) -> ! {
-    for i in 0..argc {
-        let arg = unsafe {
-            let ptr = *argv.add(i);
-            let len = strlen(ptr);
-            core::slice::from_raw_parts(ptr, len)
-        };
-        print(arg);
-        print(b"\n");
-    }
+    let args = unsafe { core::slice::from_raw_parts(argv, argc) };
 
-    exit(0);
+    match main(args) {
+        Ok(()) => syscall::exit(0),
+        Err(()) => syscall::exit(1),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -105,5 +76,5 @@ extern "C" fn _start() -> ! {
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
-    exit(1)
+    syscall::exit(1);
 }

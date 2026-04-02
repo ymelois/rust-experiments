@@ -8,3 +8,9 @@ rustc main.rs -o main \
     -C panic=abort \
     -C codegen-units=1
 ```
+
+## References
+
+<https://gitlab.com/x86-psABIs/x86-64-ABI>
+
+<https://syscalls.mebeim.net/?table=x86/64/x64/latest>
